@@ -46,7 +46,8 @@ describe("OTLP links between Temporal runs", () => {
       const trace = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
       const backgroundTrace = "dddddddddddddddddddddddddddddddd";
       const api = "aaaaaaaaaaaaaaaa";
-      const sourceRunId = "abcdefab-cdef-4fab-8fab-abcdefabcdef";
+      const sourceRunId = "agent_run:source-example";
+      const sourceTemporalRunId = "abcdefab-cdef-4fab-8fab-abcdefabcdef";
       const firstRun = "continue-fixture";
       const bgRun = "background-fixture";
       const retryRun = "retry-fixture";
@@ -61,12 +62,23 @@ describe("OTLP links between Temporal runs", () => {
           args: [{
             traceparent: "00-" + backgroundTrace + "-bbbbbbbbbbbbbbbb-01",
             roomAgentContinuation: {
-              generation: 1, sourceRunId,
+              generation: 1, sourceRunId, sourceTemporalRunId,
               sourceTraceparent: "00-" + trace + "-" + api + "-01"
             }
           }]
         });
         expect(result).toBe("background");
+        const noTemporalIdResult = await environment!.client.workflow.execute("traceFixtureBackground", {
+          taskQueue: "space-otlp-continuation-fixture", workflowId: "background-without-temporal-id",
+          args: [{
+            traceparent: "00-" + backgroundTrace + "-bbbbbbbbbbbbbbbb-01",
+            roomAgentContinuation: {
+              generation: 1, sourceRunId,
+              sourceTraceparent: "00-" + trace + "-" + api + "-01"
+            }
+          }]
+        });
+        expect(noTemporalIdResult).toBe("background");
         const retryResult = await environment!.client.workflow.execute("traceFixtureRetry", {
           taskQueue: "space-otlp-continuation-fixture", workflowId: retryRun,
           args: [{ traceparent: "00-" + trace + "-" + api + "-01" }]
@@ -89,7 +101,11 @@ describe("OTLP links between Temporal runs", () => {
       const bg = spans.find(s => s.name === "workflow traceFixtureBackground");
       expect(bg?.traceId).toBe(backgroundTrace);
       expect(bg?.parentSpanId).toBeUndefined();
-      expect(bg?.links).toContainEqual({ traceId: trace, spanId: workflowSpanId(sourceRunId) });
+      expect(bg?.links).toContainEqual({ traceId: trace, spanId: workflowSpanId(sourceTemporalRunId) });
+      const missingTemporalSpan = spans.find(s => s.name === "workflow traceFixtureBackground" &&
+        s.traceId === backgroundTrace && s.spanId !== bg?.spanId);
+      expect(missingTemporalSpan).toBeDefined();
+      expect(missingTemporalSpan?.links).toBeUndefined();
       const bgActivity = spans.find(s => s.name === "activity traceFixtureActivity" && s.traceId === backgroundTrace);
       expect(bgActivity?.parentSpanId).toBe(bg?.spanId);
       const retryWorkflow = spans.find(s => s.name === "workflow traceFixtureRetry");

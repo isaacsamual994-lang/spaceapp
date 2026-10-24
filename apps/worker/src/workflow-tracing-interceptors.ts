@@ -103,10 +103,10 @@ export const interceptors: WorkflowInterceptorsFactory = (): WorkflowInterceptor
         // Background continuations mint a new W3C trace with no preceding
         // HTTP span. Its workflow is the root, linked to the actual prior
         // Temporal run rather than a synthetic unexported parent ID.
-        const sourceRunId = continuation && typeof continuation === "object"
-          ? (continuation as Record<string, unknown>).sourceRunId : null;
-        const backgroundRunId = background && typeof sourceRunId === "string" &&
-          /^[A-Za-z0-9:._-]{1,200}$/.test(sourceRunId) ? sourceRunId : null;
+        const sourceTemporalRunId = continuation && typeof continuation === "object"
+          ? (continuation as Record<string, unknown>).sourceTemporalRunId : null;
+        const backgroundRunId = background && typeof sourceTemporalRunId === "string" &&
+          /^[A-Za-z0-9._-]{1,160}$/.test(sourceTemporalRunId) ? sourceTemporalRunId : null;
         current = {
           traceId: parsed?.traceId ?? rootTraceId(info.runId),
           spanId: workflowSpanId(info.runId),
@@ -114,7 +114,7 @@ export const interceptors: WorkflowInterceptorsFactory = (): WorkflowInterceptor
           parentSpanId: background ? null : parsed?.parentId ?? null,
           startMs: Date.now(),
           linkedTraceId: link?.traceId ?? null,
-          linkedSpanId: backgroundRunId ? workflowSpanId(backgroundRunId) : link?.parentId ?? null
+          linkedSpanId: background ? (backgroundRunId ? workflowSpanId(backgroundRunId) : null) : link?.parentId ?? null
         };
         contextAdopted = parsed !== null;
         const report = (status: WorkflowSpanWire["status"]) => {
